@@ -246,25 +246,116 @@ async function loadFilters(level) {
 }
 
 function fill(sel, items, keep) {
-  const multi = sel.multiple;
-  // حفظ الاختيار/الاختيارات السابقة
-  const prevSelected = multi
-    ? [...sel.selectedOptions].map((o) => o.value)
-    : [sel.value];
+  // إذا كان الحقل هو fAge نستخدم الـ custom dropdown
+  if (sel && sel.id === "fAge") {
+    fillAgeDropdown(items, keep);
+    return;
+  }
+  const prevSelected = [sel.value];
   sel.innerHTML = items.map((v) => `<option value="${v}">${v}</option>`).join("");
-  if (keep) {
-    if (multi) {
-      const keepSet = new Set(prevSelected.filter((v) => items.includes(v)));
-      [...sel.options].forEach((o) => { o.selected = keepSet.has(o.value); });
-    } else if (items.includes(prevSelected[0])) {
-      sel.value = prevSelected[0];
-    }
+  if (keep && items.includes(prevSelected[0])) {
+    sel.value = prevSelected[0];
   }
 }
+
+/* ── Custom Age Dropdown ── */
+let _selectedAges = new Set(["الكل"]);
+
+function fillAgeDropdown(items, keep) {
+  const dropdown = $("fAgeDropdown");
+  if (!dropdown) return;
+
+  // حفظ الاختيارات السابقة إن احتجنا
+  const prevSelected = keep ? new Set(_selectedAges) : new Set(["الكل"]);
+
+  dropdown.innerHTML = items.map((v) => {
+    const checked = prevSelected.has(v) ||
+      (!keep && v === "الكل") ? "checked" : "";
+    return `<label>
+      <input type="checkbox" value="${v}" ${checked} />
+      ${v}
+    </label>`;
+  }).join("");
+
+  // تحديث _selectedAges من checkboxes
+  syncSelectedAges();
+  updateAgeLabel();
+
+  // ربط الأحداث
+  dropdown.querySelectorAll("input[type='checkbox']").forEach((cb) => {
+    cb.addEventListener("change", onAgeCheckboxChange);
+  });
+}
+
+function onAgeCheckboxChange(e) {
+  const cb = e.target;
+  const val = cb.value;
+  const ALL_VAL = "الكل";
+  const dropdown = $("fAgeDropdown");
+  const allCb = dropdown.querySelector(`input[value="${ALL_VAL}"]`);
+
+  if (val === ALL_VAL && cb.checked) {
+    // إذا اخترت «الكل» → ألغِ البقية
+    dropdown.querySelectorAll("input[type='checkbox']").forEach((c) => {
+      c.checked = c.value === ALL_VAL;
+    });
+  } else if (val !== ALL_VAL && cb.checked) {
+    // إذا اخترت فئة محددة → ألغِ «الكل»
+    if (allCb) allCb.checked = false;
+  }
+
+  // إذا لم يبقَ أي اختيار → عد لـ«الكل»
+  const anyChecked = [...dropdown.querySelectorAll("input[type='checkbox']")]
+    .some((c) => c.checked);
+  if (!anyChecked && allCb) allCb.checked = true;
+
+  syncSelectedAges();
+  updateAgeLabel();
+}
+
+function syncSelectedAges() {
+  const dropdown = $("fAgeDropdown");
+  if (!dropdown) return;
+  _selectedAges = new Set(
+    [...dropdown.querySelectorAll("input[type='checkbox']:checked")]
+      .map((c) => c.value)
+  );
+}
+
+function updateAgeLabel() {
+  const label = $("fAgeLabel");
+  if (!label) return;
+  if (_selectedAges.has("الكل") || _selectedAges.size === 0) {
+    label.textContent = "الكل";
+  } else if (_selectedAges.size === 1) {
+    label.textContent = [..._selectedAges][0];
+  } else {
+    label.textContent = `${_selectedAges.size} فئات مختارة`;
+  }
+}
+
+function toggleAgeDropdown() {
+  const dropdown = $("fAgeDropdown");
+  const btn = $("fAgeBtn");
+  const isOpen = !dropdown.hidden;
+  dropdown.hidden = isOpen;
+  btn.setAttribute("aria-expanded", String(!isOpen));
+}
+
+// إغلاق الـ dropdown عند الضغط خارجه
+document.addEventListener("click", (e) => {
+  const wrapper = $("fAgeWrapper");
+  if (wrapper && !wrapper.contains(e.target)) {
+    $("fAgeDropdown").hidden = true;
+    $("fAgeBtn").setAttribute("aria-expanded", "false");
+  }
+});
+
 
 $("fGov").addEventListener("change", () => loadFilters("gov"));
 $("fReg").addEventListener("change", () => loadFilters("reg"));
 $("fNei").addEventListener("change", () => loadFilters("nei"));
+$("fAgeBtn").addEventListener("click", toggleAgeDropdown);
 
 // الفئة العمرية (اختيار متعدّد): «الكل» يتنافى مع اختيار فئات محدّدة
 $("fAge").addEventListener("change", (e) => {
@@ -316,19 +407,15 @@ $("runBtn").addEventListener("click", runQuery);
 function getFilters() {
   let age;
   if (STATE.voiceAgeList && STATE.voiceAgeList.length > 0) {
-    // الأولوية لما التقطه المساعد الصوتي (نطاق كامل قد يشمل عدة فئات)
     age = STATE.voiceAgeList;
   } else {
-    // اختيار متعدّد من القائمة
-    const selected = [...$("fAge").selectedOptions].map((o) => o.value);
-    // إذا لم يُحدَّد شيء، أو اختير «الكل» ضمن الاختيارات → عامله كـ«الكل»
+    const selected = [..._selectedAges];
     if (selected.length === 0 || selected.includes(ALL_VAL)) {
       age = ALL_VAL;
     } else {
-      age = selected;            // قائمة بالفئات المختارة
+      age = selected;
     }
   }
-  // نظّف voiceAgeList بعد الاستخدام
   STATE.voiceAgeList = null;
   return {
     governorate:  $("fGov").value,
@@ -645,20 +732,30 @@ async function applyVoiceFilters(f) {
   STATE.voiceAgeList = ageList.length > 0 ? ageList : null;
 }
 
-// يُفعّل مجموعة قيم في قائمة اختيار متعدّدة (يتجاهل ما ليس موجوداً)
 function selectAges(id, values) {
-  const sel = $(id);
-  if (!sel) return;
+  if (id !== "fAge") {
+    const sel = $(id);
+    if (!sel) return;
+    const set = new Set(values);
+    [...sel.options].forEach((o) => { o.selected = set.has(o.value); });
+    return;
+  }
+  // custom dropdown
+  const dropdown = $("fAgeDropdown");
+  if (!dropdown) return;
   const set = new Set(values);
+  const ALL_VAL = "الكل";
   let any = false;
-  [...sel.options].forEach((o) => {
-    o.selected = set.has(o.value);
-    if (o.selected) any = true;
+  dropdown.querySelectorAll("input[type='checkbox']").forEach((cb) => {
+    cb.checked = set.has(cb.value);
+    if (cb.checked && cb.value !== ALL_VAL) any = true;
   });
   if (!any) {
-    const allOpt = [...sel.options].find((o) => o.value === ALL_VAL);
-    if (allOpt) allOpt.selected = true;
+    const allCb = dropdown.querySelector(`input[value="${ALL_VAL}"]`);
+    if (allCb) allCb.checked = true;
   }
+  syncSelectedAges();
+  updateAgeLabel();
 }
 
 

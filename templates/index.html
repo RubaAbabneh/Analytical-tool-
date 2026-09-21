@@ -127,8 +127,14 @@
             <label>المنطقة<select id="fReg"></select></label>
             <label>الحي<select id="fNei"></select></label>
             <label class="age-field">الفئة العمرية
-              <select id="fAge" multiple size="5"></select>
-              <span class="field-hint">يمكن اختيار أكثر من فئة (Ctrl/⌘ + نقر). «الكل» يعني كل الفئات.</span>
+              <div class="multi-select" id="fAgeWrapper">
+                <button type="button" class="multi-select-btn" id="fAgeBtn">
+                  <span id="fAgeLabel">الكل</span>
+                  <span class="multi-arrow">&#8964;</span>
+                </button>
+                <div class="multi-select-dropdown" id="fAgeDropdown" hidden></div>
+              </div>
+              <span class="field-hint">يمكن اختيار أكثر من فئة. «الكل» يعني كل الفئات.</span>
             </label>
           </div>
 
