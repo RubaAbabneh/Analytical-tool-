@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    restart: always
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    command:
+      - "http"
+      - "web:5000"
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN= 3JdQ3dcXbzs0u50pQFr4p7eyfEb_DKYpPZXn6kBhijV18S8C
+      - web

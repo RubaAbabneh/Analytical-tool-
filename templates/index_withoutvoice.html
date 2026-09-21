@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مرصد التقديرات السكانية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+  <!-- الترويسة -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <h1>مرصد التقديرات السكانية</h1>
+        <p>أداة تحليل وتنبؤ للبيانات السكانية — طرق إحصائية كلاسيكية</p>
+      </div>
+    </div>
+    <div class="brand-side">دائرة الإحصاءات العامة</div>
+  </header>
+
+  <main class="wrap">
+    <!-- بطاقة الرفع -->
+    <section class="panel upload-panel" id="uploadPanel">
+      <div class="upload-intro">
+        <span class="eyebrow">الخطوة الأولى</span>
+        <h2>ارفعي ملف البيانات السكانية</h2>
+        <p>يقبل النظام ملفات Excel‏ (.xlsx) أو CSV تتضمّن أعداد السكان حسب المحافظة والمنطقة والحي والفئة العمرية للأعوام المتاحة. تُحلَّل البيانات محلياً على جهازك ولا تُرسل لأي جهة خارجية.</p>
+        <a class="sample-link" href="#" id="sampleHint">لا تملكين ملفاً الآن؟ استخدمي ملف العيّنة المرفق في مجلّد sample_data للتجربة.</a>
+      </div>
+
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="منطقة رفع الملف">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden />
+        <div class="dz-icon" aria-hidden="true">⬆</div>
+        <p class="dz-title">اسحبي الملف هنا أو انقري للاختيار</p>
+        <p class="dz-sub">xlsx · xls · csv — حتى 25 ميجابايت</p>
+        <button class="btn btn-primary" id="pickBtn" type="button">اختيار ملف</button>
+        <div class="dz-file" id="dzFile" hidden></div>
+      </div>
+    </section>
+
+    <div class="banner" id="errorBanner" hidden></div>
+
+    <!-- الملخّص السريع -->
+    <section class="brief" id="briefSection" hidden>
+      <div class="section-head">
+        <h2>ملخّص سريع للبيانات المرفوعة</h2>
+        <span class="file-chip" id="fileChip"></span>
+      </div>
+
+      <div class="stat-strip" id="statStrip"></div>
+
+      <div class="brief-grid">
+        <div class="panel chart-card">
+          <h3>تطوّر إجمالي السكان عبر الأعوام</h3>
+          <div id="overviewChart" class="plot"></div>
+        </div>
+        <div class="panel preview-card">
+          <h3>معاينة البيانات</h3>
+          <div class="table-scroll"><table id="previewTable"></table></div>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <p>البيانات جاهزة. افتحي المساعد لطرح الأسئلة وإجراء الحسابات والتنبؤ.</p>
+        <button class="btn btn-amber" id="openAssistantInline" type="button">افتح المساعد التحليلي</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- زر المساعد العائم -->
+  <button class="fab" id="fab" type="button" hidden aria-label="فتح المساعد التحليلي">
+    <span class="fab-dot"></span> المساعد
+  </button>
+
+  <!-- نافذة المساعد المنبثقة -->
+  <div class="modal-overlay" id="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="assistantTitle">
+      <div class="modal-head">
+        <div>
+          <span class="assistant-kicker">مساعد تحليلي</span>
+          <h2 id="assistantTitle">اطرحي سؤالك حول بياناتك</h2>
+        </div>
+        <button class="icon-btn" id="closeModal" type="button" aria-label="إغلاق">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- النوايا -->
+        <div class="intents" id="intents">
+          <button class="intent" data-intent="by_governorate"><b>السكان حسب المحافظة</b><span>توزيع وترتيب المحافظات لسنة محددة</span></button>
+          <button class="intent" data-intent="age_distribution"><b>التوزيع حسب الفئة العمرية</b><span>تركيب الفئات العمرية ضمن نطاق مختار</span></button>
+          <button class="intent" data-intent="timeseries"><b>تطوّر السكان زمنياً</b><span>السلسلة الزمنية ومعدّل النمو</span></button>
+          <button class="intent" data-intent="growth"><b>مقارنة النمو بين سنتين</b><span>التغيّر المطلق والنسبي والنمو المركّب</span></button>
+          <button class="intent" data-intent="custom"><b>عملية حسابية مخصّصة</b><span>مجموع · متوسط · وسيط · أعلى · أدنى</span></button>
+          <button class="intent intent-feature" data-intent="forecast"><b>تنبؤ بعدد السكان (ARIMA)</b><span>توقّع السنوات القادمة بفترات ثقة</span></button>
+        </div>
+
+        <!-- لوحة الإعداد -->
+        <div class="config" id="config" hidden>
+          <button class="back-link" id="backToIntents" type="button">▸ رجوع للأسئلة</button>
+          <h3 id="configTitle"></h3>
+
+          <div class="filters">
+            <label>المحافظة<select id="fGov"></select></label>
+            <label>المنطقة<select id="fReg"></select></label>
+            <label>الحي<select id="fNei"></select></label>
+            <label>الفئة العمرية<select id="fAge"></select></label>
+          </div>
+
+          <div class="params" id="params"></div>
+
+          <button class="btn btn-primary run-btn" id="runBtn" type="button">عرض النتيجة</button>
+        </div>
+
+        <!-- النتائج -->
+        <div class="results" id="results" hidden>
+          <div class="download-bar">
+            <span class="download-label">تنزيل النتائج</span>
+            <button class="btn btn-dl" id="dlCsv" type="button">⬇ جدول CSV</button>
+            <button class="btn btn-dl" id="dlChart" type="button">⬇ رسم PNG</button>
+          </div>
+
+          <div class="result-block" id="reportBlock">
+            <span class="result-tag">قراءة كلامية</span>
+            <p id="reportText"></p>
+          </div>
+          <div class="result-block" id="chartBlock">
+            <span class="result-tag">رسم بياني</span>
+            <div id="resultChart" class="plot"></div>
+          </div>
+          <div class="result-block" id="tableBlock">
+            <span class="result-tag">جدول النتائج</span>
+            <div class="table-scroll"><table id="resultTable"></table></div>
+          </div>
+        </div>
+
+        <div class="loading" id="loading" hidden><span class="spinner"></span> جارٍ الحساب…</div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">مرصد التقديرات السكانية · يعمل محلياً · جميع الحسابات مشتقّة من ملفك فقط</footer>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
